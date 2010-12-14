@@ -1,0 +1,34 @@
+Name:                data-validator
+Version:             0.0.1
+Synopsis:            A modular, flexible, reusable and context agnostic data validation library
+License:             BSD3
+License-file:        LICENSE
+Author:              Ozgun Ataman
+Maintainer:          ozataman@gmail.com
+Category:            Data
+Build-type:          Simple
+Cabal-version:       >=1.2
+
+
+Library
+  Exposed-modules:
+    Data.Validator
+  
+  -- Packages needed in order to build this package.
+  Build-depends:       
+      base
+    , bytestring
+    , containers
+    , safe
+
+  Extensions:
+    OverloadedStrings
+
+  hs-source-dirs: src, test
+  
+  -- Modules not exported by this package.
+  -- Other-modules:       
+  
+  -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
+  -- Build-tools:         
+  
