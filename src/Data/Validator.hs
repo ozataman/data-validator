@@ -22,6 +22,7 @@ instance Functor (Consumer a) where
   fmap f (Consumer g) = Consumer $ \m -> fmap (fmap f) (g m)
 
 
+(>+>) :: Consumer a b -> Consumer b c -> Consumer a c
 (Consumer f) >+> (Consumer g) = Consumer step
   where
     g' (Ok x) = g x

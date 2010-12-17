@@ -1,12 +1,13 @@
 module Main where
 
+import Control.Applicative
 import qualified Data.ByteString.Char8 as B
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.Map as Map
 import Data.Map (Map)
 
 import Data.Validator
-import Data.Validator.Combinators
+import Safe
 
 
 type Params = Map ByteString ByteString
