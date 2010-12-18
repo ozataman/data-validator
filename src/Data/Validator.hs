@@ -8,21 +8,23 @@ import Data.Map (Map)
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.IO.Class
 
 import Safe
 
+ferror :: ByteString -> Maybe ByteString -> ErrorItem -> Result t
 ferror fname val e = Error $ Map.fromList [(fname, (val, [e]))]
 
 
-newtype Consumer a t = Consumer 
-  { runCons :: a -> IO (Result t) }
+newtype (MonadIO m) => Consumer m a t = Consumer 
+  { runCons :: a -> m (Result t) }
 
 
-instance Functor (Consumer a) where
+instance (Functor m, MonadIO m) => Functor (Consumer m a) where
   fmap f (Consumer g) = Consumer $ \m -> fmap (fmap f) (g m)
 
 
-(>+>) :: Consumer a b -> Consumer b c -> Consumer a c
+(>+>) :: (MonadIO m) => Consumer m a b -> Consumer m b c -> Consumer m a c
 (Consumer f) >+> (Consumer g) = Consumer step
   where
     g' (Ok x) = g x
@@ -32,7 +34,7 @@ instance Functor (Consumer a) where
               g' r
 
 
-instance Applicative (Consumer a) where
+instance (Applicative m, MonadIO m) => Applicative (Consumer m a) where
   pure x = Consumer $ \m -> return . return $ x
   Consumer f <*> Consumer g = Consumer step
     where
@@ -40,10 +42,19 @@ instance Applicative (Consumer a) where
                 r1 <- f m
                 r2 <- g m
                 return $ r1 <*> r2
+  
+
+type ErrorMap = Map ByteString ErrorInfo
+
+type ErrorInfo = (Maybe ByteString, ErrorList)
+
+type ErrorList = [ErrorItem]
+
+type ErrorItem = (ByteString, [(ByteString, ByteString)])
 
 
 data Result ok 
-  = Error (Map ByteString (Maybe ByteString, [ByteString]))
+  = Error ErrorMap
   | Ok ok 
   deriving (Show, Eq)
 

@@ -1,6 +1,7 @@
 Name:                data-validator
-Version:             0.0.1
-Synopsis:            A modular, flexible, reusable and context agnostic data validation library
+Version:             0.0.2
+Synopsis:            A modular, flexible, reusable and context agnostic 
+                     data validation library.
 License:             BSD3
 License-file:        LICENSE
 Author:              Ozgun Ataman
@@ -16,10 +17,11 @@ Library
   
   -- Packages needed in order to build this package.
   Build-depends:       
-      base
-    , bytestring
+      base >= 4 && < 5
+    , bytestring >= 0.9
     , containers
     , safe
+    , transformers >= 0.2.2.0
 
   Extensions:
     OverloadedStrings
