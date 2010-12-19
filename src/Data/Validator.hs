@@ -15,9 +15,10 @@ module Data.Validator
   , field
   , ferror
   , paramv
+  , bindC
 
   -- * Validators
-  -- | A variety of built-in validator combinators for your convenience.
+  -- | A variety of built-in validator combinators for your convenience. 
   , isPresent
   , isNonBlank
   , isNum
@@ -49,7 +50,7 @@ import Safe
 ------------------------------------------------------------------------------
 
 
-isPresent :: (Monad m) => FieldValidator m ByteString
+isPresent :: (Monad m) => FieldValidator m ByteString ByteString
 isPresent = 
   let errval = ferror ("Must be present", [])
   in do
@@ -57,19 +58,19 @@ isPresent =
     maybe errval return v
 
 
-isNonBlank :: (Eq a, IsString a, Monad m) => a -> FieldValidator m a
+isNonBlank :: (Eq a, IsString a, Monad m) => a -> FieldValidator m ByteString a
 isNonBlank v = if v == "" then errval else return v
   where errval = ferror ("Must be non-blank", [])
 
 
-isAtLeast :: (Monad m, Ord a) => a -> a -> FieldValidator m a
+isAtLeast :: (Monad m, Ord a) => a -> a -> FieldValidator m ByteString a
 isAtLeast limit val = if val < limit then errval else return val
   where errval = ferror ("Must be at least", [])
 
 
 isNum :: (StringLike a, Monad m, Num b, Read b) 
       => a 
-      -> FieldValidator m b
+      -> FieldValidator m ByteString b
 isNum val = maybe errval return n
   where 
     sval = toString val :: String
@@ -77,7 +78,7 @@ isNum val = maybe errval return n
     errval = ferror ("Must be numeric", [])
 
 
-canbeBlank :: (Monad m) => FieldValidator m (Maybe a)
+canbeBlank :: (Monad m) => FieldValidator m ByteString (Maybe a)
 canbeBlank = check
   where
     errval = ferror ("Must be a valid entry or can be left blank", [])
@@ -85,7 +86,7 @@ canbeBlank = check
     blank v = if v == "" then return Nothing else errval
     
 
-maybeThere :: (Monad m) => a -> FieldValidator m (Maybe a)
+maybeThere :: (Monad m) => a -> FieldValidator m ByteString (Maybe a)
 maybeThere = return . Just 
 
 ------------------------------------------------------------------------------
@@ -93,22 +94,38 @@ maybeThere = return . Just
 ------------------------------------------------------------------------------
 
 
-field :: FieldValidator m a -> FieldVal -> Consumer m a
-field r v = runReaderT r v
+field :: FieldVal a -> FieldValidator m a b -> Consumer m b
+field v r = runReaderT r v
 
 
-paramv :: ByteString -> Map ByteString [ByteString] -> FieldVal
+paramv :: ByteString -> Map ByteString [ByteString] -> FieldVal ByteString
 paramv k m = FV k val 
   where val = Map.lookup k m >>= headMay 
 
 
 ferror :: (Monad m) 
        => (ByteString, [(ByteString, ByteString)]) 
-       -> FieldValidator m a
+       -> FieldValidator m ByteString a
 ferror e = do
   fname <- asks vField
   vorig <- asks vOrig
   lift . Consumer . return . Error $ Map.fromList [(fname, (vorig, [e]))]
+
+
+------------------------------------------------------------------------------
+-- | Take a consumer and make in the input for a 'FieldValidator'.
+bindC :: (Monad m) 
+      => Consumer m a 
+      -> ByteString 
+      -> FieldValidator m a b 
+      -> Consumer m b
+bindC (Consumer c) label rv = Consumer step
+  where 
+    step = do
+      r <- c
+      case r of
+        Error x -> return $ Error x
+        Ok x -> runCons $ runReaderT rv (FV label (Just x))
 
 
 
@@ -116,16 +133,28 @@ ferror e = do
 -- Types
 ------------------------------------------------------------------------------
 
-type FieldValidator m a = ReaderT FieldVal (Consumer m) a
+type FieldValidator m a b = ReaderT (FieldVal a) (Consumer m) b
 
 
-data FieldVal = FV 
-  { vField :: ByteString
-  , vOrig :: Maybe ByteString
+
+------------------------------------------------------------------------------
+-- | Environment / input data for the validation session. Wrapped around the
+-- 'Consumer' with 'ReaderT'.
+data FieldVal a = FV 
+  { vField :: ByteString  -- ^ Specified name for this field/validated entity.
+  , vOrig :: Maybe a      -- ^ Original/initial value being validated.
   }
 
 
-
+------------------------------------------------------------------------------
+-- | A container to hold the validated data. 
+--
+-- It lives in a monad, so you can put it in 'IO' if that is needed. It wraps
+-- around 'Result', which means it can intrinsically express failure.
+--
+-- Consumer is itself a 'Monad', a 'Functor', an 'Applicative' and an
+-- 'Alternative' which really is what makes this library possible. See examples
+-- for how these instances are used.
 newtype Consumer m a = Consumer
   { runCons :: m (Result a) }
 
