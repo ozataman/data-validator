@@ -1,5 +1,8 @@
 :set -XOverloadedStrings
+:set -XNoMonomorphismRestriction
 :set -Wall
 :set -isrc
 :set -itest
+:set -hide-package monads-fd
+:set -hide-package monads-tf
 
