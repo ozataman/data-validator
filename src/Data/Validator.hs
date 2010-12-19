@@ -14,6 +14,7 @@ module Data.Validator
   -- | These are meant to be used in your modules.
   , field
   , ferror
+  , ferror'
   , paramv
   , bindC
 
@@ -103,12 +104,30 @@ paramv k m = FV k val
   where val = Map.lookup k m >>= headMay 
 
 
+------------------------------------------------------------------------------
+-- | Convenience function to quickly generate error messages in the
+-- 'FieldValidator' monad. See the supplied examples.
 ferror :: (Monad m) 
-       => (ByteString, [(ByteString, ByteString)]) 
+       => (ByteString, [(ByteString, ByteString)])
+       -- ^ Message, substitution pairs mapping. If in doubt, just supply []
+       -- for the pairs.
        -> FieldValidator m ByteString a
 ferror e = do
   fname <- asks vField
   vorig <- asks vOrig
+  lift . Consumer . return . Error $ Map.fromList [(fname, (vorig, [e]))]
+
+
+------------------------------------------------------------------------------
+-- | Just like 'ferror' but operates on any input value that is an instance of
+-- 'Show'. This is needed for the implicit conversion of the input to
+-- ByteString in the returned 'ErrorMap'.
+ferror' :: (Functor m, Monad m, Show a)
+        => (ByteString, [(ByteString, ByteString)])
+        -> FieldValidator m a b
+ferror' e = do
+  fname <- asks vField
+  vorig <- fmap (fmap (fromString . show)) $ asks vOrig
   lift . Consumer . return . Error $ Map.fromList [(fname, (vorig, [e]))]
 
 

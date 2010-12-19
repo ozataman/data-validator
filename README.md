@@ -1,6 +1,12 @@
 # Data.Validator
 
 ## Introduction
+Validation of data is a common use case in many applications. Examples include
+parsing of user submitted forms in web applications and various data processing
+applications where it is required that the data is imported/read in
+a pre-determined way.
+
+## Status
 This library is very much experimental at this point, but is meant for
 practical real-world data validation applications.
 

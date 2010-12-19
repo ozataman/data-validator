@@ -51,11 +51,4 @@ passvalid = do
   where
     errval p1 = do
       fname <- asks vField
-      lift . Consumer . return . Error $ Map.fromList
-        [(fname, (Just p1, [("Must be same as its confirmation", [])]))]
-
-
-
-
-
-
+      ferror' ("Must be same as its confirmation", [])
