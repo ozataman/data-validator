@@ -26,6 +26,8 @@ module Data.Validator
   , isAtLeast
   , canbeBlank
   , maybeThere
+  , areSame
+  , areSame2
   
 
 ) where
@@ -51,6 +53,8 @@ import Safe
 ------------------------------------------------------------------------------
 
 
+------------------------------------------------------------------------------
+-- | Field is present
 isPresent :: (Monad m) => FieldValidator m ByteString ByteString
 isPresent = 
   let errval = ferror ("Must be present", [])
@@ -59,16 +63,22 @@ isPresent =
     maybe errval return v
 
 
+------------------------------------------------------------------------------
+-- | Field is not blank
 isNonBlank :: (Eq a, IsString a, Monad m) => a -> FieldValidator m ByteString a
 isNonBlank v = if v == "" then errval else return v
   where errval = ferror ("Must be non-blank", [])
 
 
+------------------------------------------------------------------------------
+-- | Field is greater than the given value
 isAtLeast :: (Monad m, Ord a) => a -> a -> FieldValidator m ByteString a
 isAtLeast limit val = if val < limit then errval else return val
   where errval = ferror ("Must be at least", [])
 
 
+------------------------------------------------------------------------------
+-- | Field is numeric
 isNum :: (StringLike a, Monad m, Num b, Read b) 
       => a 
       -> FieldValidator m ByteString b
@@ -79,6 +89,8 @@ isNum val = maybe errval return n
     errval = ferror ("Must be numeric", [])
 
 
+------------------------------------------------------------------------------
+-- | Field can be blank
 canbeBlank :: (Monad m) => FieldValidator m ByteString (Maybe a)
 canbeBlank = check
   where
@@ -87,8 +99,37 @@ canbeBlank = check
     blank v = if v == "" then return Nothing else errval
     
 
+------------------------------------------------------------------------------
+-- | Turn a value into Just value
 maybeThere :: (Monad m) => a -> FieldValidator m ByteString (Maybe a)
 maybeThere = return . Just 
+
+
+------------------------------------------------------------------------------
+-- | A given list of fields are all the same
+areSame :: (Monad m, Eq a, Show a) => FieldValidator m [a] (Maybe a)
+areSame = do
+  Just ps <- asks vOrig
+  if same ps then return (headMay ps) else errval 
+  where
+    same xs = let (r, _) = foldr step (True, Nothing) xs in r
+    step x (c, Just l) = (c && (l == x), Just x)
+    step x (c, Nothing) = (c, Just x)
+    errval = do
+      fname <- asks vField
+      ferror' ("Must be same as its confirmation", [])
+
+
+------------------------------------------------------------------------------
+-- | A given tuple has the same element twice
+areSame2 :: (Monad m, Eq a, Show a) => FieldValidator m (a, a) a
+areSame2 = do
+  Just (p1,p2) <- asks vOrig
+  if p1 == p2 then return p1 else errval 
+  where
+    errval = do
+      fname <- asks vField
+      ferror' ("Must be same as its confirmation", [])
 
 ------------------------------------------------------------------------------
 -- Combinators
@@ -122,12 +163,12 @@ ferror e = do
 -- | Just like 'ferror' but operates on any input value that is an instance of
 -- 'Show'. This is needed for the implicit conversion of the input to
 -- ByteString in the returned 'ErrorMap'.
-ferror' :: (Functor m, Monad m, Show a)
+ferror' :: (Monad m, Show a)
         => (ByteString, [(ByteString, ByteString)])
         -> FieldValidator m a b
 ferror' e = do
   fname <- asks vField
-  vorig <- fmap (fmap (fromString . show)) $ asks vOrig
+  vorig <- liftM (liftM (fromString . show)) $ asks vOrig
   lift . Consumer . return . Error $ Map.fromList [(fname, (vorig, [e]))]
 
 
