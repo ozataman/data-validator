@@ -22,13 +22,17 @@ module Data.Validator
   -- | A variety of built-in validator combinators for your convenience. 
   , isPresent
   , isNonBlank
+  , hasMinLen
   , isNum
   , isAtLeast
   , canbeBlank
   , maybeThere
   , areSame
   , areSame2
-  
+
+  -- * Access To Error Values
+  , errsFor
+  , errVal
 
 ) where
 
@@ -39,11 +43,9 @@ import Data.Map (Map)
 
 import Control.Applicative
 import Control.Monad
-import Control.Monad.IO.Class
 import Control.Monad.Reader
 
 import Data.String
-import Data.ListLike (StringLike, toString)
 
 import Safe
 
@@ -71,6 +73,13 @@ isNonBlank v = if v == "" then errval else return v
 
 
 ------------------------------------------------------------------------------
+-- | Field has minimum length
+hasMinLen :: (Show a, Show b, Monad m) => Int -> a -> FieldValidator m b a
+hasMinLen n v = if (length . show $ v) >= n then return v else errval
+  where errval = ferror' ("Must have a minimum length of x", [])
+
+
+------------------------------------------------------------------------------
 -- | Field is greater than the given value
 isAtLeast :: (Monad m, Ord a) => a -> a -> FieldValidator m ByteString a
 isAtLeast limit val = if val < limit then errval else return val
@@ -79,12 +88,12 @@ isAtLeast limit val = if val < limit then errval else return val
 
 ------------------------------------------------------------------------------
 -- | Field is numeric
-isNum :: (StringLike a, Monad m, Num b, Read b) 
+isNum :: (Monad m, Num b, Read b, Show a) 
       => a 
       -> FieldValidator m ByteString b
 isNum val = maybe errval return n
   where 
-    sval = toString val :: String
+    sval = show val
     n = readMay sval
     errval = ferror ("Must be numeric", [])
 
@@ -136,10 +145,16 @@ areSame2 = do
 ------------------------------------------------------------------------------
 
 
+------------------------------------------------------------------------------
+-- | Given a 'FieldVal' and a validating 'FieldValidator', return a 'Consumer'
+--
+-- See examples for usage.
 field :: FieldVal a -> FieldValidator m a b -> Consumer m b
 field v r = runReaderT r v
 
 
+------------------------------------------------------------------------------
+-- | Convenience function to work with Snap's 'Params' type
 paramv :: ByteString -> Map ByteString [ByteString] -> FieldVal ByteString
 paramv k m = FV k val 
   where val = Map.lookup k m >>= headMay 
@@ -188,6 +203,24 @@ bindC (Consumer c) label rv = Consumer step
         Ok x -> runCons $ runReaderT rv (FV label (Just x))
 
 
+------------------------------------------------------------------------------
+-- Easy Access To Result Values
+------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------
+-- | Errors for the given field
+errsFor :: ByteString -> Result ok -> Maybe ErrorInfo
+errsFor f (Error m) = Map.lookup f m
+errsFor f _ = Nothing
+
+
+------------------------------------------------------------------------------
+-- | The supplied rejected value for the field
+errVal :: ByteString -> Result ok -> Maybe ByteString
+errVal f (Error m) = Map.lookup f m >>= \(v, _) -> v
+errVal f _ = Nothing
+
 
 ------------------------------------------------------------------------------
 -- Types
@@ -198,8 +231,8 @@ type FieldValidator m a b = ReaderT (FieldVal a) (Consumer m) b
 
 
 ------------------------------------------------------------------------------
--- | Environment / input data for the validation session. Wrapped around the
--- 'Consumer' with 'ReaderT'.
+-- | Environment / input data for the validation session. Later wrapped around
+-- the 'Consumer' with 'ReaderT' when the validation is run.
 data FieldVal a = FV 
   { vField :: ByteString  -- ^ Specified name for this field/validated entity.
   , vOrig :: Maybe a      -- ^ Original/initial value being validated.
@@ -254,6 +287,16 @@ instance (Monad m) => Monad (Consumer m) where
       step = do
         r <- f
         runCons $ g' r
+
+
+instance MonadIO m => MonadIO (Consumer m) where
+  liftIO a = Consumer run
+    where run = liftIO a >>= return . return
+
+
+instance MonadTrans Consumer where
+  lift a = Consumer run
+    where run = a >>= return . return
 
 
 type ErrorMap = Map ByteString ErrorInfo

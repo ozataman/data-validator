@@ -23,7 +23,7 @@ data User = User
 ps1 :: Map ByteString [ByteString]
 ps1 = Map.fromList 
   [ ("login", ["ozataman"])
-  , ("name", ["ahmet"])
+  , ("name", ["as"])
   , ("age", ["21"])
   , ("pass", ["eben"])
   , ("pass_conf", ["eben"])
@@ -35,7 +35,7 @@ usrForm ps = runCons $ User
         (     canbeBlank 
           <|> (isPresent >>= isNonBlank >>= isNum >>= isAtLeast 18 >>= maybeThere)
         )
-  <*> field (paramv "name" ps) (isPresent >>= isNonBlank) 
+  <*> field (paramv "name" ps) (isPresent >>= isNonBlank >>= hasMinLen 5) 
   <*> field (paramv "login" ps) (isPresent >>= isNonBlank) 
   <*> passField ps
 
