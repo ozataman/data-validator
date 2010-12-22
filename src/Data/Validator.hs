@@ -33,6 +33,7 @@ module Data.Validator
   -- * Access To Error Values
   , errsFor
   , errVal
+  , fmapM
 
 ) where
 
@@ -220,6 +221,15 @@ errsFor f _ = Nothing
 errVal :: ByteString -> Result ok -> Maybe ByteString
 errVal f (Error m) = Map.lookup f m >>= \(v, _) -> v
 errVal f _ = Nothing
+
+
+------------------------------------------------------------------------------
+-- | Lift the given function inside 'Result', get the result in a different
+-- monad. fail (Nothing) if result was 'Error'. 'Maybe' is a typical
+-- application.
+fmapM :: (Monad m) => (a -> b) -> Result a -> m b
+fmapM f (Error _) = fail "Can't lift a function inside a Result with errors"
+fmapM f (Ok x) = return $ f x
 
 
 ------------------------------------------------------------------------------
