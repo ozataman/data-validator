@@ -6,7 +6,6 @@ module Data.Validator
   , Consumer(..)
   , Result(..)
   , ErrorMap
-  , ErrorInfo
   , ErrorList
   , ErrorItem
 
@@ -30,9 +29,8 @@ module Data.Validator
   , areSame
   , areSame2
 
-  -- * Access To Error Values
+  -- * Access To Result Values
   , errsFor
-  , errVal
   , fmapM
 
 ) where
@@ -75,9 +73,11 @@ isNonBlank v = if v == "" then errval else return v
 
 ------------------------------------------------------------------------------
 -- | Field has minimum length
-hasMinLen :: (Show a, Show b, Monad m) => Int -> a -> FieldValidator m b a
-hasMinLen n v = if (length . show $ v) >= n then return v else errval
-  where errval = ferror' ("Must have a minimum length of x", [])
+hasMinLen :: (Monad m) => Int 
+          -> ByteString 
+          -> FieldValidator m ByteString ByteString
+hasMinLen n v = if (B.length v) >= n then return v else errval
+  where errval = ferror' ("Must have a minimum length of", [("length", "2")]
 
 
 ------------------------------------------------------------------------------
@@ -89,13 +89,12 @@ isAtLeast limit val = if val < limit then errval else return val
 
 ------------------------------------------------------------------------------
 -- | Field is numeric
-isNum :: (Monad m, Num b, Read b, Show a) 
-      => a 
+isNum :: (Monad m, Num b, Read b) 
+      => ByteString 
       -> FieldValidator m ByteString b
 isNum val = maybe errval return n
   where 
-    sval = show val
-    n = readMay sval
+    n = readMay $ B.unpack val
     errval = ferror ("Must be numeric", [])
 
 
@@ -171,8 +170,7 @@ ferror :: (Monad m)
        -> FieldValidator m ByteString a
 ferror e = do
   fname <- asks vField
-  vorig <- asks vOrig
-  lift . Consumer . return . Error $ Map.fromList [(fname, (vorig, [e]))]
+  lift . Consumer . return . Error $ Map.fromList [(fname, [e])]
 
 
 ------------------------------------------------------------------------------
@@ -184,8 +182,7 @@ ferror' :: (Monad m, Show a)
         -> FieldValidator m a b
 ferror' e = do
   fname <- asks vField
-  vorig <- liftM (liftM (fromString . show)) $ asks vOrig
-  lift . Consumer . return . Error $ Map.fromList [(fname, (vorig, [e]))]
+  lift . Consumer . return . Error $ Map.fromList [(fname, [e])]
 
 
 ------------------------------------------------------------------------------
@@ -211,16 +208,9 @@ bindC (Consumer c) label rv = Consumer step
 
 ------------------------------------------------------------------------------
 -- | Errors for the given field
-errsFor :: ByteString -> Result ok -> Maybe ErrorInfo
+errsFor :: ByteString -> Result ok -> Maybe ErrorList
 errsFor f (Error m) = Map.lookup f m
 errsFor f _ = Nothing
-
-
-------------------------------------------------------------------------------
--- | The supplied rejected value for the field
-errVal :: ByteString -> Result ok -> Maybe ByteString
-errVal f (Error m) = Map.lookup f m >>= \(v, _) -> v
-errVal f _ = Nothing
 
 
 ------------------------------------------------------------------------------
@@ -309,10 +299,7 @@ instance MonadTrans Consumer where
     where run = a >>= return . return
 
 
-type ErrorMap = Map ByteString ErrorInfo
-
-
-type ErrorInfo = (Maybe ByteString, ErrorList)
+type ErrorMap = Map ByteString ErrorList
 
 
 type ErrorList = [ErrorItem]
@@ -341,7 +328,7 @@ instance Monad Result where
 instance Applicative Result where
     pure = Ok
     Error x <*> Error y = 
-      Error $ Map.unionWith (\(l,as) (_,bs) -> (l,as++bs)) x y
+      Error $ Map.unionWith (\as bs -> as++bs) x y
     Error x <*> Ok _ = Error x
     Ok _ <*> Error y = Error y
     Ok x <*> Ok y = Ok $ x y
