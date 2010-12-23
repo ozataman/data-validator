@@ -28,6 +28,7 @@ module Data.Validator
   , maybeThere
   , areSame
   , areSame2
+  , checkM
 
   -- * Access To Result Values
   , errsFor
@@ -141,6 +142,18 @@ areSame2 = do
       fname <- asks vField
       ferror' ("Must be same as its confirmation", [])
 
+
+
+------------------------------------------------------------------------------
+-- | Validate the passed value with the given monadic checking action.
+checkM :: (Monad m, Show b) => (a -> m Bool) -> a -> FieldValidator m b a
+checkM f v = do
+  chk <- lift . lift $ f v
+  if chk
+  	then return v
+  	else ferror' ("Is invalid", [])
+  
+
 ------------------------------------------------------------------------------
 -- Combinators
 ------------------------------------------------------------------------------
@@ -175,9 +188,7 @@ ferror e = do
 
 
 ------------------------------------------------------------------------------
--- | Just like 'ferror' but operates on any input value that is an instance of
--- 'Show'. This is needed for the implicit conversion of the input to
--- ByteString in the returned 'ErrorMap'.
+-- | Just like 'ferror' but operates on any input value. 
 ferror' :: (Monad m, Show a)
         => (ByteString, [(ByteString, ByteString)])
         -> FieldValidator m a b
