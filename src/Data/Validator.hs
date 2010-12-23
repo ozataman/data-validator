@@ -77,7 +77,8 @@ hasMinLen :: (Monad m) => Int
           -> ByteString 
           -> FieldValidator m ByteString ByteString
 hasMinLen n v = if (B.length v) >= n then return v else errval
-  where errval = ferror' ("Must have a minimum length of", [("length", "2")]
+  where errval = ferror' ( "Must have a minimum length of"
+                         , [("length", B.pack $ show n)] )
 
 
 ------------------------------------------------------------------------------
